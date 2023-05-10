@@ -16,19 +16,53 @@
 #define RTT_BIT(x) ((x & 0x800) >> 0x11)
 
 #define REG_MAP_SIZE 0xFFF
-#define CTP_MAP_SIZE 0xFF
+#define RTE_MAP_SIZE 0xFFF
 
-int walk_structure_entry(int rtt_val, unsigned rta_pointer_val, int fd)
+#define OFFSET_INDEX(x)  (x * 4)
+
+int walk_structure_entry(int rtt_val, unsigned long int rta_pointer_val, int fd, int bus_n, int dev_n, int func_n)
 {
-        unsigned *ctp_addr_va = (unsigned int *)(0x25AA66000);
+        unsigned int *rte_addr_va = NULL;
+	unsigned int *cte_addr_va = NULL;
         int *start;
+	int devfn = dev_n << 3 | func_n;
 
-        start = (int *)mmap(ctp_addr_va, CTP_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, rta_pointer_val);
+	rte_addr_va = (unsigned int *)(0x25AA66000);
+	cte_addr_va = (unsigned int *)(0x26AA66000);
+
+	unsigned long int CTP;
 
         if (rtt_val == 0)
         {
+		// root entry
+		start = (int *)mmap(rte_addr_va, RTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, rta_pointer_val);
+        	if (start < 0)
+        	{
+                	printf("mmap failed in %s\n", __func__);
+                	return -1;
+        	}
+		printf("root entry bus %d [63-0]:0x%x%x\n",
+				bus_n, rte_addr_va[1 + OFFSET_INDEX(bus_n)], rte_addr_va[0 + OFFSET_INDEX(bus_n)]);
+		printf("root entry bus %d [127-64]:0x%x%x\n",
+				bus_n, rte_addr_va[3 + OFFSET_INDEX(bus_n)], rte_addr_va[2 + OFFSET_INDEX(bus_n)]);
+		CTP = (unsigned long int)rte_addr_va[1 + OFFSET_INDEX(bus_n)] << 32 | rte_addr_va[0 + OFFSET_INDEX(bus_n)];
+		CTP >>= 12;
+		CTP <<= 12;
+		printf("CTP=0x%lx\n", CTP);
+		
+		// context entry
+		start = (int *)mmap(cte_addr_va, RTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, CTP);
+        	if (start < 0)
+        	{
+                	printf("mmap failed in %s\n", __func__);
+                	return -1;
+        	}
+		printf("conext entry dev 0x%x func %d [63-0]:0x%x%x\n",
+				dev_n, func_n, cte_addr_va[1 + OFFSET_INDEX(devfn)], cte_addr_va[0 + OFFSET_INDEX(devfn)]);
+		printf("conext entry dev 0x%x func %d [127-64]:0x%x%x\n",
+				dev_n, func_n, cte_addr_va[3 + OFFSET_INDEX(devfn)], cte_addr_va[2 + OFFSET_INDEX(devfn)]);
 
-        }
+	}
         else if (rtt_val == 1)
         {
 
@@ -50,16 +84,20 @@ int main()
         int RTT;
         int ret = 0;
 
+	int bus_num = 0;
+	int dev_num = 0xf;
+	int func_num = 0x0;
+
         reg_start_addr_va = (unsigned int *)(0x24AA66000);  // user-space start va, 这是指定映射到user-space va上的起始地址
 
-        file_device = open("/dev/mem", O_RDWR);
+        file_device = open("/dev/zxmem", O_RDWR);
         if (file_device < 0)
         {
                 printf("cannot open /dev/mem\n");
                 return -1;
         }
 
-        start = (int *)mmap(reg_start_addr_va, REG_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, file_device, 0xfed91000);
+        start = (int *)mmap(reg_start_addr_va, REG_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, file_device, 0xfe40c000);
         // printf("start=%llx\n", start);
         if (start < 0)
         {
@@ -81,7 +119,7 @@ int main()
         RTA <<= 12;
         printf("RTT=%x, RTA=0x%lx\n", RTT, RTA);
 
-        ret = walk_structure_entry(RTT, RTA, file_device);
+        ret = walk_structure_entry(RTT, RTA, file_device, bus_num, dev_num, func_num);
         if (ret == -2)
                 goto unmap;
 
