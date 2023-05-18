@@ -32,7 +32,7 @@
 #define PML4_3rd_OFFSET(x)  ((x & 0x3FE00000) >> 21) << 3
 #define PML4_4th_OFFSET(x)  ((x & 0x1FF000) >> 12) << 3
 
-int walk_second_structure_entry(unsigned long int SLPTPTR_val,
+int walk_page_structure_entry(unsigned long int SLPTPTR_val,
 		unsigned long int input_va_val, int fd)
 {
 	int bit0_11 = PML4_PAGE_OFFSET(input_va_val);   // page offset
@@ -78,6 +78,9 @@ int walk_second_structure_entry(unsigned long int SLPTPTR_val,
         SLPTPTR_1level <<= 12;
         printf("SLPTPTR_1level=0x%lx\n", SLPTPTR_1level);
 
+        if (SLPTPTR_1level == 0)
+                goto addr_0_err;
+
         slp_addr_2nd_va = (unsigned int *)(0x28AA66000);
 
         start = (int *)mmap(slp_addr_2nd_va, SL_2nd_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, SLPTPTR_1level);
@@ -96,6 +99,9 @@ int walk_second_structure_entry(unsigned long int SLPTPTR_val,
         SLPTPTR_2level <<= 12;
         printf("SLPTPTR_2level=0x%lx\n", SLPTPTR_2level);
 
+        if (SLPTPTR_1level == 0)
+                goto addr_0_err;
+
         slp_addr_3rd_va = (unsigned int *)(0x29AA66000);
         start = (int *)mmap(slp_addr_3rd_va, SL_3rd_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, SLPTPTR_2level);
         if (start < 0)
@@ -111,6 +117,9 @@ int walk_second_structure_entry(unsigned long int SLPTPTR_val,
         SLPTPTR_3level >>= 12;
         SLPTPTR_3level <<= 12;
         printf("SLPTPTR_3level=0x%lx\n", SLPTPTR_3level);
+
+        if (SLPTPTR_3level == 0)
+                goto addr_0_err;
 
         slp_addr_4th_va = (unsigned int *)(0x2aAA66000);
         start = (int *)mmap(slp_addr_4th_va, SL_4th_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, SLPTPTR_3level);
@@ -128,6 +137,9 @@ int walk_second_structure_entry(unsigned long int SLPTPTR_val,
         SLPTPTR_4level <<=12;
         printf("SLPTPTR_4level=0x%lx\n", SLPTPTR_4level);
 
+        if (SLPTPTR_4level == 0)
+                goto addr_0_err;
+
 	if (munmap(slp_addr_va, SL_1st_MAP_SIZE) == -1)
                 printf("slp_addr_va munmap error");
 
@@ -140,6 +152,11 @@ int walk_second_structure_entry(unsigned long int SLPTPTR_val,
                 printf("slp_addr_4th_va munmap errpr");
 
         return 0;
+
+addr_0_err:
+        printf("this level addr pointer is 0!!\n");
+        return -2;
+
 }
 
 int walk_structure_entry(int rtt_val, unsigned long int rta_pointer_val,
@@ -158,6 +175,7 @@ int walk_structure_entry(int rtt_val, unsigned long int rta_pointer_val,
 
         if (rtt_val == 0)
         {
+                printf("===context mode===\n");
 		// root entry
 		start = (int *)mmap(rte_addr_va, RTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, rta_pointer_val);
         	if (start < 0)
@@ -190,10 +208,11 @@ int walk_structure_entry(int rtt_val, unsigned long int rta_pointer_val,
 		SLPTPTR >>= 12;
 		SLPTPTR <<= 12;
 		printf("SLPTPTR=0x%lx\n", SLPTPTR);
-		walk_second_structure_entry(SLPTPTR, input_va, fd);
+		walk_page_structure_entry(SLPTPTR, input_va, fd);
 	}
         else if (rtt_val == 1)
         {
+                printf("===extended context mode===\n");
 
         }
         else
@@ -210,11 +229,12 @@ int walk_structure_entry(int rtt_val, unsigned long int rta_pointer_val,
         return 0;
 }
 
-int main()
+int main(int argc, char* argv[], char* envp[])
 {
         int *start;
         int file_device;
         unsigned int *reg_start_addr_va = NULL;
+        unsigned long int input_guest_addr;
 
         unsigned long int RTA;
         int RTT;
@@ -223,6 +243,9 @@ int main()
 	int bus_num = 0;
 	int dev_num = 0xf;
 	int func_num = 0x0;
+
+        char *ptr;
+        input_guest_addr = strtoll(argv[1], &ptr, 16);
 
         reg_start_addr_va = (unsigned int *)(0x24AA66000);  // user-space start va, 这是指定映射到user-space va上的起始地址
 
@@ -257,7 +280,7 @@ int main()
         printf("RTT=%#x, RTA=0x%lx\n", RTT, RTA);
 
         ret = walk_structure_entry(RTT, RTA, file_device, bus_num,
-                                   dev_num, func_num, 0x0fff90100);  // input_va 0x0fff90100 only for test
+                                   dev_num, func_num, input_guest_addr);  // can input_va 0x0fff90100  for test
         if (ret == -2)
                 goto unmap;
 
