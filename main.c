@@ -61,10 +61,12 @@ int walk_second_structure_entry(unsigned long int SLPTPTR_val,
         }
 
 	printf("1st offset: %#x, pointer val: 0x%08x%08x\n", bit39_47,
-			slp_addr_va[0 + INDEX_OFFSET(bit39_47)], slp_addr_va[1 + INDEX_OFFSET(bit39_47)]);
+			slp_addr_va[1 + INDEX_OFFSET(bit39_47)], slp_addr_va[0 + INDEX_OFFSET(bit39_47)]);
 
 	if (munmap(slp_addr_va, SL_1st_MAP_SIZE) == -1)
                 printf("munmap error");
+
+	unsigned long int SLPTPTR_2level = ;
 	
 }
 
