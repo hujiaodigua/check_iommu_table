@@ -23,8 +23,6 @@
 #define SL_3rd_MAP_SIZE 0xFFF
 #define SL_4th_MAP_SIZE 0xFFF
 
-#define OFFSET_INDEX(x)  (x * 4)
-#define INDEX_OFFSET(val)  (val / 4)
 
 #define PML4_PAGE_OFFSET(x)  (x & 0xFFF)
 #define PML4_1st_OFFSET(x)  ((x & 0xFF8000000000) >> 39) << 3
@@ -32,18 +30,51 @@
 #define PML4_3rd_OFFSET(x)  ((x & 0x3FE00000) >> 21) << 3
 #define PML4_4th_OFFSET(x)  ((x & 0x1FF000) >> 12) << 3
 
-int walk_page_structure_entry(unsigned long int SLPTPTR_val,
-		unsigned long int input_va_val, int fd)
+int offset_2_index(int x)
+{
+        int bits = sizeof(char *);
+
+        if (bits == 4)  // 32bit OS
+                return x * 8;
+        else if (bits == 8)  // 64 bit OS
+                return x * 4;
+        else
+        {
+                printf("pointer size error\n");
+                return 0;
+        }
+}
+
+/*int index_2_offset(int x)
+{
+        int bits = sizeof(char *);
+        if (bits == 4)
+                return x / 4;
+        else if (bits == 8)
+                return x / 4;  // 64bit OS and 32bit OS, inde_2_offset are same between them
+        else
+        {
+                printf("pointer size error\n");
+                return 0;
+        }
+}*/
+
+#define OFFSET_INDEX(val)  offset_2_index(val)
+// #define INDEX_OFFSET(val)  index_2_offset(val)
+#define INDEX_OFFSET(val)  (val / 4)
+
+int walk_page_structure_entry(unsigned long long int SLPTPTR_val,
+		unsigned long long int input_va_val, int fd)
 {
 	int bit0_11 = PML4_PAGE_OFFSET(input_va_val);   // page offset
 	int bit12_20 = PML4_4th_OFFSET(input_va_val);  // forth offset
 	int bit21_29 = PML4_3rd_OFFSET(input_va_val);  // third offset
 	int bit30_39 = PML4_2nd_OFFSET(input_va_val);  // second offset
 	int bit39_47 = PML4_1st_OFFSET(input_va_val);  // first offset
-	unsigned long int SLPTPTR_1level;
-        unsigned long int SLPTPTR_2level;
-        unsigned long int SLPTPTR_3level;
-        unsigned long int SLPTPTR_4level;
+	unsigned long long int SLPTPTR_1level;
+        unsigned long long int SLPTPTR_2level;
+        unsigned long long int SLPTPTR_3level;
+        unsigned long long int SLPTPTR_4level;
 
 	unsigned int *slp_addr_va = NULL;
         unsigned int *slp_addr_2nd_va = NULL;
@@ -53,7 +84,7 @@ int walk_page_structure_entry(unsigned long int SLPTPTR_val,
 
 	slp_addr_va = (unsigned int *)(0x27AA66000);
 
-	printf("input va: %#lx\n", input_va_val);
+	printf("input va: %#llx\n", input_va_val);
 	printf("page offset bit0_11: %#x\n", bit0_11);
 	printf("4th offset bit12_20: %#x\n", bit12_20);
 	printf("3rd offset bit21_29: %#x\n", bit21_29);
@@ -72,11 +103,11 @@ int walk_page_structure_entry(unsigned long int SLPTPTR_val,
 			slp_addr_va[1 + INDEX_OFFSET(bit39_47)], slp_addr_va[0 + INDEX_OFFSET(bit39_47)]);
 
 
-        SLPTPTR_1level = (unsigned long int)slp_addr_va[1 + INDEX_OFFSET(bit39_47)] << 32
+        SLPTPTR_1level = (unsigned long long int)slp_addr_va[1 + INDEX_OFFSET(bit39_47)] << 32
                         | slp_addr_va[0 + INDEX_OFFSET(bit39_47)];
         SLPTPTR_1level >>= 12;
         SLPTPTR_1level <<= 12;
-        printf("SLPTPTR_1level=0x%lx\n", SLPTPTR_1level);
+        printf("SLPTPTR_1level=0x%llx\n", SLPTPTR_1level);
 
         if (SLPTPTR_1level == 0)
                 goto addr_0_err;
@@ -93,11 +124,11 @@ int walk_page_structure_entry(unsigned long int SLPTPTR_val,
         printf("2nd offset: %#x, pointer val: 0x%08x%08x\n", bit30_39,
               slp_addr_2nd_va[1 + INDEX_OFFSET(bit30_39)], slp_addr_2nd_va[0 + INDEX_OFFSET(bit30_39)]);
 
-        SLPTPTR_2level = (unsigned long int)slp_addr_2nd_va[1 + INDEX_OFFSET(bit30_39)] << 32
+        SLPTPTR_2level = (unsigned long long int)slp_addr_2nd_va[1 + INDEX_OFFSET(bit30_39)] << 32
                         | slp_addr_2nd_va[0 + INDEX_OFFSET(bit30_39)];
         SLPTPTR_2level >>= 12;
         SLPTPTR_2level <<= 12;
-        printf("SLPTPTR_2level=0x%lx\n", SLPTPTR_2level);
+        printf("SLPTPTR_2level=0x%llx\n", SLPTPTR_2level);
 
         if (SLPTPTR_1level == 0)
                 goto addr_0_err;
@@ -112,11 +143,11 @@ int walk_page_structure_entry(unsigned long int SLPTPTR_val,
 
         printf("3rd offset: %#x, pointer val: 0x%08x%08x\n", bit21_29,
               slp_addr_3rd_va[1 + INDEX_OFFSET(bit21_29)], slp_addr_3rd_va[0 + INDEX_OFFSET(bit21_29)]);
-        SLPTPTR_3level = (unsigned long int)slp_addr_3rd_va[1 + INDEX_OFFSET(bit21_29)] << 32
+        SLPTPTR_3level = (unsigned long long int)slp_addr_3rd_va[1 + INDEX_OFFSET(bit21_29)] << 32
                         | slp_addr_3rd_va[0 + INDEX_OFFSET(bit21_29)];
         SLPTPTR_3level >>= 12;
         SLPTPTR_3level <<= 12;
-        printf("SLPTPTR_3level=0x%lx\n", SLPTPTR_3level);
+        printf("SLPTPTR_3level=0x%llx\n", SLPTPTR_3level);
 
         if (SLPTPTR_3level == 0)
                 goto addr_0_err;
@@ -131,11 +162,11 @@ int walk_page_structure_entry(unsigned long int SLPTPTR_val,
 
         printf("4th offset: %#x, pointer val: 0x%08x%08x\n", bit12_20,
               slp_addr_4th_va[1 + INDEX_OFFSET(bit12_20)], slp_addr_4th_va[0 + INDEX_OFFSET(bit12_20)]);
-        SLPTPTR_4level = (unsigned long int)slp_addr_4th_va[1 + INDEX_OFFSET(bit12_20)] << 32
+        SLPTPTR_4level = (unsigned long long int)slp_addr_4th_va[1 + INDEX_OFFSET(bit12_20)] << 32
                         | slp_addr_4th_va[0 + INDEX_OFFSET(bit12_20)];
         SLPTPTR_4level >>= 12;
         SLPTPTR_4level <<=12;
-        printf("SLPTPTR_4level=0x%lx\n", SLPTPTR_4level);
+        printf("SLPTPTR_4level=0x%llx\n", SLPTPTR_4level);
 
         if (SLPTPTR_4level == 0)
                 goto addr_0_err;
@@ -159,8 +190,8 @@ addr_0_err:
 
 }
 
-int walk_structure_entry(int rtt_val, unsigned long int rta_pointer_val,
-		int fd, int bus_n, int dev_n, int func_n, unsigned long int input_va)
+int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
+		int fd, int bus_n, int dev_n, int func_n, unsigned long long int input_va)
 {
         unsigned int *rte_addr_va = NULL;
 	unsigned int *cte_addr_va = NULL;
@@ -170,8 +201,8 @@ int walk_structure_entry(int rtt_val, unsigned long int rta_pointer_val,
 	rte_addr_va = (unsigned int *)(0x25AA66000);
 	cte_addr_va = (unsigned int *)(0x26AA66000);
 
-	unsigned long int CTP;
-	unsigned long int SLPTPTR;
+	unsigned long long int CTP;
+	unsigned long long int SLPTPTR;
 
         if (rtt_val == 0)
         {
@@ -187,10 +218,23 @@ int walk_structure_entry(int rtt_val, unsigned long int rta_pointer_val,
 				bus_n, rte_addr_va[1 + OFFSET_INDEX(bus_n)], rte_addr_va[0 + OFFSET_INDEX(bus_n)]);
 		printf("root entry bus %d [127-64]:0x%08x%08x\n",
 				bus_n, rte_addr_va[3 + OFFSET_INDEX(bus_n)], rte_addr_va[2 + OFFSET_INDEX(bus_n)]);
-		CTP = (unsigned long int)rte_addr_va[1 + OFFSET_INDEX(bus_n)] << 32 | rte_addr_va[0 + OFFSET_INDEX(bus_n)];
-		CTP >>= 12;
-		CTP <<= 12;
-		printf("CTP=0x%lx\n", CTP);
+
+                if (dev_n >=0 && dev_n <= 15)
+                {
+		        CTP = (unsigned long long int)rte_addr_va[1 + OFFSET_INDEX(bus_n)] << 32
+                                | rte_addr_va[0 + OFFSET_INDEX(bus_n)];
+		        CTP >>= 12;
+		        CTP <<= 12;
+                        printf("dev_n:%d Use Lower CTP=0x%llx\n", dev_n, CTP);
+                }
+                if (dev_n >=16 && dev_n <= 31)
+                {
+		        CTP = (unsigned long long int)rte_addr_va[3 + OFFSET_INDEX(bus_n)] << 32
+                                | rte_addr_va[2 + OFFSET_INDEX(bus_n)];
+		        CTP >>= 12;
+		        CTP <<= 12;
+                        printf("dev_n:%d Use Upper CTP=0x%llx\n", dev_n, CTP);
+                }
 
 		// context entry
 		start = (int *)mmap(cte_addr_va, CTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, CTP);
@@ -204,15 +248,26 @@ int walk_structure_entry(int rtt_val, unsigned long int rta_pointer_val,
 		printf("conext entry dev 0x%x func %d [127-64]:0x%08x%08x\n",
 				dev_n, func_n, cte_addr_va[3 + OFFSET_INDEX(devfn)], cte_addr_va[2 + OFFSET_INDEX(devfn)]);
 
-		SLPTPTR = (unsigned long int)cte_addr_va[1 + OFFSET_INDEX(devfn)] << 32 | cte_addr_va[0 + OFFSET_INDEX(devfn)];
+		SLPTPTR = (unsigned long long int)cte_addr_va[1 + OFFSET_INDEX(devfn)] << 32 | cte_addr_va[0 + OFFSET_INDEX(devfn)];
 		SLPTPTR >>= 12;
 		SLPTPTR <<= 12;
-		printf("SLPTPTR=0x%lx\n", SLPTPTR);
+		printf("SLPTPTR=0x%llx\n", SLPTPTR);
 		walk_page_structure_entry(SLPTPTR, input_va, fd);
+
+	        if (munmap(rte_addr_va, RTE_MAP_SIZE) == -1)
+		        printf("munmap error");
+
+	        if (munmap(cte_addr_va, CTE_MAP_SIZE) == -1)
+		        printf("munmap error");
 	}
         else if (rtt_val == 1)
         {
                 printf("===extended context mode===\n");
+                // extended root entry
+
+                // extended context entry
+
+                // PASID entry
 
         }
         else
@@ -220,11 +275,6 @@ int walk_structure_entry(int rtt_val, unsigned long int rta_pointer_val,
                 return -2;
         }
 
-	if (munmap(rte_addr_va, RTE_MAP_SIZE) == -1)
-		printf("munmap error");
-
-	if (munmap(cte_addr_va, CTE_MAP_SIZE) == -1)
-		printf("munmap error");
 
         return 0;
 }
@@ -234,9 +284,10 @@ int main(int argc, char* argv[], char* envp[])
         int *start;
         int file_device;
         unsigned int *reg_start_addr_va = NULL;
-        unsigned long int input_guest_addr;
+        unsigned long long int input_guest_addr;
+        unsigned long long int input_DMAR_addr;
 
-        unsigned long int RTA;
+        unsigned long long int RTA;
         int RTT;
         int ret = 0;
 
@@ -246,6 +297,9 @@ int main(int argc, char* argv[], char* envp[])
 
         char *ptr;
         input_guest_addr = strtoll(argv[1], &ptr, 16);
+
+        char *ptr_dmar;
+        input_DMAR_addr = strtoll(argv[2], &ptr_dmar, 16);
 
         reg_start_addr_va = (unsigned int *)(0x24AA66000);  // user-space start va, 这是指定映射到user-space va上的起始地址
 
@@ -257,7 +311,7 @@ int main(int argc, char* argv[], char* envp[])
                 return -1;
         }
 
-        start = (int *)mmap(reg_start_addr_va, REG_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, file_device, 0xfe40c000);
+        start = (int *)mmap(reg_start_addr_va, REG_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, file_device, input_DMAR_addr);
         // printf("start=%llx\n", start);
         if (start < 0)
         {
@@ -273,11 +327,11 @@ int main(int argc, char* argv[], char* envp[])
         printf("RTADDR_REG value: 0x%08x%08x\n", reg_start_addr_va[9], reg_start_addr_va[8]);
 
 
-        RTA = (unsigned long)reg_start_addr_va[9] << 32 | reg_start_addr_va[8];
+        RTA = (unsigned long long)reg_start_addr_va[9] << 32 | reg_start_addr_va[8];
         RTT = RTT_BIT(reg_start_addr_va[8]);
         RTA >>= 12;  // clear control bit
         RTA <<= 12;
-        printf("RTT=%#x, RTA=0x%lx\n", RTT, RTA);
+        printf("RTT=%#x, RTA=0x%llx\n", RTT, RTA);
 
         ret = walk_structure_entry(RTT, RTA, file_device, bus_num,
                                    dev_num, func_num, input_guest_addr);  // can input_va 0x0fff90100  for test
