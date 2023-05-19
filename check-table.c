@@ -13,7 +13,7 @@
 #include<sys/types.h>
 #include<sys/stat.h>
 
-#define RTT_BIT(x) ((x & 0x800) >> 0x11)
+#define RTT_BIT(x) ((x & 0x800) >> 11)
 
 #define REG_MAP_SIZE 0xFFF
 #define RTE_MAP_SIZE 0xFFF
@@ -204,9 +204,9 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
 	unsigned long long int CTP;
 	unsigned long long int SLPTPTR;
 
-        if (rtt_val == 0)
+        if (rtt_val == 1)
         {
-                printf("===context mode===\n");
+                printf("===Used Extended Root Entry===\n");
 		// root entry
 		start = (int *)mmap(rte_addr_va, RTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, rta_pointer_val);
         	if (start < 0)
@@ -214,27 +214,78 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
                 	printf("mmap failed in %s\n", __func__);
                 	return -1;
         	}
-		printf("root entry bus %d [63-0]:0x%08x%08x\n",
-				bus_n, rte_addr_va[1 + OFFSET_INDEX(bus_n)], rte_addr_va[0 + OFFSET_INDEX(bus_n)]);
-		printf("root entry bus %d [127-64]:0x%08x%08x\n",
-				bus_n, rte_addr_va[3 + OFFSET_INDEX(bus_n)], rte_addr_va[2 + OFFSET_INDEX(bus_n)]);
+
+		printf("root entry bus %#x [63-0]:0x%08x%08x\n",
+				bus_n, rte_addr_va[1 + INDEX_OFFSET(bus_n * 0x10)], rte_addr_va[0 + INDEX_OFFSET(bus_n * 0x10)]);
+		printf("root entry bus %#x [127-64]:0x%08x%08x\n",
+				bus_n, rte_addr_va[3 + INDEX_OFFSET(bus_n * 0x10)], rte_addr_va[2 + INDEX_OFFSET(bus_n * 0x10)]);
 
                 if (dev_n >=0 && dev_n <= 15)
                 {
-		        CTP = (unsigned long long int)rte_addr_va[1 + OFFSET_INDEX(bus_n)] << 32
-                                | rte_addr_va[0 + OFFSET_INDEX(bus_n)];
+		        CTP = (unsigned long long int)rte_addr_va[1 + INDEX_OFFSET(bus_n * 0x10)] << 32
+                                | rte_addr_va[0 + INDEX_OFFSET(bus_n * 0x10)];  // OFFSET 0x840 means bus 0x84
 		        CTP >>= 12;
 		        CTP <<= 12;
                         printf("dev_n:%d Use Lower CTP=0x%llx\n", dev_n, CTP);
                 }
                 if (dev_n >=16 && dev_n <= 31)
                 {
-		        CTP = (unsigned long long int)rte_addr_va[3 + OFFSET_INDEX(bus_n)] << 32
-                                | rte_addr_va[2 + OFFSET_INDEX(bus_n)];
+		        CTP = (unsigned long long int)rte_addr_va[3 + INDEX_OFFSET(bus_n * 0x10)] << 32
+                                | rte_addr_va[2 + INDEX_OFFSET(bus_n * 0x10)];
 		        CTP >>= 12;
 		        CTP <<= 12;
                         printf("dev_n:%d Use Upper CTP=0x%llx\n", dev_n, CTP);
                 }
+
+		// context entry
+		start = (int *)mmap(cte_addr_va, CTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, CTP);
+        	if (start < 0)
+        	{
+                	printf("mmap failed in %s\n", __func__);
+                	return -1;
+        	}
+		printf("conext entry dev 0x%x func %d [63-0]:0x%08x%08x\n",
+				dev_n, func_n, cte_addr_va[1 + OFFSET_INDEX(devfn)], cte_addr_va[0 + OFFSET_INDEX(devfn)]);
+		printf("conext entry dev 0x%x func %d [127-64]:0x%08x%08x\n",
+				dev_n, func_n, cte_addr_va[3 + OFFSET_INDEX(devfn)], cte_addr_va[2 + OFFSET_INDEX(devfn)]);
+		printf("conext entry dev 0x%x func %d [191-128]:0x%08x%08x\n",
+				dev_n, func_n, cte_addr_va[5 + OFFSET_INDEX(devfn)], cte_addr_va[4 + OFFSET_INDEX(devfn)]);
+		printf("conext entry dev 0x%x func %d [255-192]:0x%08x%08x\n",
+				dev_n, func_n, cte_addr_va[7 + OFFSET_INDEX(devfn)], cte_addr_va[6 + OFFSET_INDEX(devfn)]);
+
+		SLPTPTR = (unsigned long long int)cte_addr_va[1 + OFFSET_INDEX(devfn)] << 32 | cte_addr_va[0 + OFFSET_INDEX(devfn)];
+		SLPTPTR >>= 12;
+		SLPTPTR <<= 12;
+		printf("SLPTPTR=0x%llx\n", SLPTPTR);
+		walk_page_structure_entry(SLPTPTR, input_va, fd);
+
+	        if (munmap(rte_addr_va, RTE_MAP_SIZE) == -1)
+		        printf("munmap error");
+
+	        if (munmap(cte_addr_va, CTE_MAP_SIZE) == -1)
+		        printf("munmap error");
+	}
+        else if (rtt_val == 0)
+        {
+                printf("===Used Root Entry===\n");
+		// root entry
+		start = (int *)mmap(rte_addr_va, RTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, rta_pointer_val);
+        	if (start < 0)
+        	{
+                	printf("mmap failed in %s\n", __func__);
+                	return -1;
+        	}
+
+		printf("root entry bus %#x [63-0]:0x%08x%08x\n",
+				bus_n, rte_addr_va[1 + INDEX_OFFSET(bus_n * 0x10)], rte_addr_va[0 + INDEX_OFFSET(bus_n * 0x10)]);
+		printf("root entry bus %#x [127-64]:0x%08x%08x\n",
+				bus_n, rte_addr_va[3 + INDEX_OFFSET(bus_n * 0x10)], rte_addr_va[2 + INDEX_OFFSET(bus_n * 0x10)]);
+
+		CTP = (unsigned long long int)rte_addr_va[1 + INDEX_OFFSET(bus_n * 0x10)] << 32
+                        | rte_addr_va[0 + INDEX_OFFSET(bus_n * 0x10)];  // OFFSET 0x840 means bus 0x84
+		CTP >>= 12;
+		CTP <<= 12;
+                printf("dev_n:%d CTP=0x%llx\n", dev_n, CTP);
 
 		// context entry
 		start = (int *)mmap(cte_addr_va, CTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, CTP);
@@ -259,16 +310,6 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
 
 	        if (munmap(cte_addr_va, CTE_MAP_SIZE) == -1)
 		        printf("munmap error");
-	}
-        else if (rtt_val == 1)
-        {
-                printf("===extended context mode===\n");
-                // extended root entry
-
-                // extended context entry
-
-                // PASID entry
-
         }
         else
         {
@@ -291,8 +332,8 @@ int main(int argc, char* argv[], char* envp[])
         int RTT;
         int ret = 0;
 
-	int bus_num = 0;
-	int dev_num = 0xf;
+	int bus_num = 0x84;
+	int dev_num = 0x0;
 	int func_num = 0x0;
 
         char *ptr;
@@ -311,6 +352,7 @@ int main(int argc, char* argv[], char* envp[])
                 return -1;
         }
 
+        // DMAR0 0xfe48c000
         start = (int *)mmap(reg_start_addr_va, REG_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, file_device, input_DMAR_addr);
         // printf("start=%llx\n", start);
         if (start < 0)
