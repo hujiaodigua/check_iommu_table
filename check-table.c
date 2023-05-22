@@ -463,6 +463,10 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
                                    cte_addr_va[4 + OFFSET_INDEX(devfn)];
                         PASIDPTR >>= 12;
                         PASIDPTR <<= 12;
+
+                        if (input_pasid == 0)
+                                goto pasid_zero;
+
                         printf("PASIDPTR=0x%llx\n", PASIDPTR);
                         printf("===Used PASID Entry===\n");
 
@@ -552,6 +556,10 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
         }
 
 
+        return 0;
+
+pasid_zero:
+        printf("input pasid is zero\n");
         return 0;
 }
 
