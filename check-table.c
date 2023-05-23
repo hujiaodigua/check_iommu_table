@@ -108,7 +108,7 @@ int walk_page_structure_entry(unsigned long long int SLPTPTR_val,
 		return -1;
         }
 
-        printf("===start walk pml4 table structure===\n");
+        printf("===start walk second pml4 table structure===\n");
 	printf("1st offset: %#x, pointer val: 0x%08x%08x\n", bit39_47,
 			slp_addr_va[1 + INDEX_OFFSET(bit39_47)], slp_addr_va[0 + INDEX_OFFSET(bit39_47)]);
 
@@ -146,6 +146,8 @@ int walk_page_structure_entry(unsigned long long int SLPTPTR_val,
         if (munmap(slp_addr_2nd_va, SL_2nd_MAP_SIZE) == -1)
                 printf("slp_addr_2nd_va munmap error\n");
 
+        if (HUGEPAGE_BIT(SLPTPTR_2level) == 1)
+                goto GB_HUGEPAGE;
         if (PRESENT_BIT(SLPTPTR_2level) == 0)
                 goto entry_not_present;
 
@@ -172,6 +174,8 @@ int walk_page_structure_entry(unsigned long long int SLPTPTR_val,
         if (munmap(slp_addr_3rd_va, SL_3rd_MAP_SIZE) == -1)
                 printf("slp_addr_3rd_va munmap error\n");
 
+        if (HUGEPAGE_BIT(SLPTPTR_3level) == 1)
+                goto MB_HUGEPAGE;
         if (PRESENT_BIT(SLPTPTR_3level) == 0)
                 goto entry_not_present;
 
@@ -216,9 +220,16 @@ addr_0_err:
         return -2;
 
 entry_not_present:
-        printf("this entry is not present");
+        printf("this entry not present");
         return -3;
 
+GB_HUGEPAGE:
+        printf("Used 1GB Huge Page\n");
+        return 0;
+
+MB_HUGEPAGE:
+        printf("Used 2MB Huge Page\n");
+        return 0;
 }
 
 int walk_first_page_structure_entry(unsigned long long int FLPTPTR_val,
@@ -256,7 +267,7 @@ int walk_first_page_structure_entry(unsigned long long int FLPTPTR_val,
 		return -1;
         }
 
-        printf("===start walk pml4 table structure===\n");
+        printf("===start walk first pml4 table structure===\n");
 	printf("1st offset: %#x, pointer val: 0x%08x%08x\n", bit39_47,
 			flp_addr_va[1 + INDEX_OFFSET(bit39_47)], flp_addr_va[0 + INDEX_OFFSET(bit39_47)]);
 
@@ -388,6 +399,7 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
         unsigned int *pasidte_addr_va = NULL;
         int *start;
 	int devfn = dev_n << 3 | func_n;
+        int ret;
 
         rte_addr_va = (unsigned int *)(0x5AA66000);
 	cte_addr_va = (unsigned int *)(0x6AA66000);
@@ -405,7 +417,7 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
 		start = (int *)mmap(rte_addr_va, RTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, rta_pointer_val);
         	if (start < 0)
         	{
-                	printf("mmap failed in %s\n", __func__);
+                	printf("rte_addr_va mmap failed in %s\n", __func__);
                 	return -1;
         	}
 
@@ -418,6 +430,16 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
                 {
 		        CTP = (unsigned long long int)rte_addr_va[1 + INDEX_OFFSET(bus_n * 0x10)] << 32
                                 | rte_addr_va[0 + INDEX_OFFSET(bus_n * 0x10)];  // OFFSET 0x840 means bus 0x84
+
+                        if (munmap(rte_addr_va, RTE_MAP_SIZE) == -1)
+		                printf("rte_addr_va munmap error\n");
+
+                        if (PRESENT_BIT(CTP) == 0)
+                        {
+                                printf("lower extend root entry not present\n");
+                                return -3;
+                        }
+
 		        CTP >>= 12;
 		        CTP <<= 12;
                         printf("dev_n:%d Use Lower CTP=0x%llx\n", dev_n, CTP);
@@ -426,17 +448,32 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
                 {
 		        CTP = (unsigned long long int)rte_addr_va[3 + INDEX_OFFSET(bus_n * 0x10)] << 32
                                 | rte_addr_va[2 + INDEX_OFFSET(bus_n * 0x10)];
+
+                        if (munmap(rte_addr_va, RTE_MAP_SIZE) == -1)
+		                printf("rte_addr_va munmap error\n");
+
+                        if (PRESENT_BIT(CTP) == 0)
+                        {
+                                printf("upper extend root entry not present\n");
+                                return -3;
+                        }
+
 		        CTP >>= 12;
 		        CTP <<= 12;
                         printf("dev_n:%d Use Upper CTP=0x%llx\n", dev_n, CTP);
                 }
+
+	        if (munmap(rte_addr_va, RTE_MAP_SIZE) == -1)
+		        printf("rte_addr_va munmap error\n");
+
+
 
 		// extended context entry
                 printf("===Used Extended Context Entry===\n");
 		start = (int *)mmap(cte_addr_va, CTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, CTP);
         	if (start < 0)
         	{
-                	printf("mmap failed in %s\n", __func__);
+                	printf("cte_addr_va mmap failed in %s\n", __func__);
                 	return -1;
         	}
 		printf("conext entry dev 0x%x func %d [63-0]:0x%08x%08x\n",
@@ -449,18 +486,28 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
 				dev_n, func_n, cte_addr_va[7 + OFFSET_INDEX(devfn)], cte_addr_va[6 + OFFSET_INDEX(devfn)]);
 
 		SLPTPTR = (unsigned long long int)cte_addr_va[1 + OFFSET_INDEX(devfn)] << 32 | cte_addr_va[0 + OFFSET_INDEX(devfn)];
+
+
+                if (PRESENT_BIT(SLPTPTR) == 0)
+                {
+	                if (munmap(cte_addr_va, CTE_MAP_SIZE) == -1)
+		                printf("cte_addr_va munmap error\n");
+                        printf("extend context entry not present\n");
+                        return -3;
+                }
+
 		SLPTPTR >>= 12;
 		SLPTPTR <<= 12;
 		printf("SLPTPTR=0x%llx\n", SLPTPTR);
-		walk_page_structure_entry(SLPTPTR, input_va, fd);
+		ret = walk_page_structure_entry(SLPTPTR, input_va, fd);
 
                 if (PASIDE_BIT(cte_addr_va[0 + OFFSET_INDEX(devfn)]) == 1)
                 {
-
-
                         printf("PASID enable\n");
                         PASIDPTR = (unsigned long long int)cte_addr_va[5 + OFFSET_INDEX(devfn)]  << 32 |
                                    cte_addr_va[4 + OFFSET_INDEX(devfn)];
+
+
                         PASIDPTR >>= 12;
                         PASIDPTR <<= 12;
 
@@ -476,7 +523,7 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
                                                     PROT_READ | PROT_WRITE, MAP_SHARED, fd, PASIDPTR);
                                 if (start < 0)
                                 {
-                	                printf("mmap failed in %s\n", __func__);
+                	                printf("pasidte_addrva mmap failed in %s\n", __func__);
                 	                return -1;
                                 }
                                 printf("pasid entry pasid:%#x, [63-0]:0x%08x%08x\n",
@@ -485,23 +532,18 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
                         }
                         FLPTPTR = (unsigned long long int)pasidte_addr_va[1 + PASID_INDEX(input_pasid)] << 32 |
                                   pasidte_addr_va[0 + PASID_INDEX(input_pasid)];
+
+                        if (munmap(pasidte_addr_va, PASIDTE_MAP_SIZE) == -1)
+                                printf("pasidte_addr_va munmap error\n");
+
                         FLPTPTR >>= 12;
                         FLPTPTR <<= 12;
                         printf("FLPTPTR=0x%llx\n", FLPTPTR);
-                        walk_first_page_structure_entry(FLPTPTR, input_va, fd);
+                        ret = walk_first_page_structure_entry(FLPTPTR, input_va, fd);
                 }
 
-	        if (munmap(rte_addr_va, RTE_MAP_SIZE) == -1)
-		        printf("munmap error\n");
-
 	        if (munmap(cte_addr_va, CTE_MAP_SIZE) == -1)
-		        printf("munmap error\n");
-
-                if (input_pasid != 0)
-                {
-                        if (munmap(pasidte_addr_va, PASIDTE_MAP_SIZE) == -1)
-                                printf("munmap error\n");
-	        }
+		        printf("cte_addr_va munmap error\n");
         }
         else if (rtt_val == 0)
         {
@@ -510,7 +552,7 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
 		start = (int *)mmap(rte_addr_va, RTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, rta_pointer_val);
         	if (start < 0)
         	{
-                	printf("mmap failed in %s\n", __func__);
+                	printf("rte_addr_va mmap failed in %s\n", __func__);
                 	return -1;
         	}
 
@@ -521,6 +563,16 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
 
 		CTP = (unsigned long long int)rte_addr_va[1 + INDEX_OFFSET(bus_n * 0x10)] << 32
                         | rte_addr_va[0 + INDEX_OFFSET(bus_n * 0x10)];  // OFFSET 0x840 means bus 0x84
+
+                if (munmap(rte_addr_va, RTE_MAP_SIZE) == -1)
+		        printf("rte_addr_va munmap error\n");
+
+                if (PRESENT_BIT(CTP) == 0)
+                {
+                        printf("root entry not present\n");
+                        return -3;
+                }
+
 		CTP >>= 12;
 		CTP <<= 12;
                 printf("dev_n:%d CTP=0x%llx\n", dev_n, CTP);
@@ -530,7 +582,7 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
 		start = (int *)mmap(cte_addr_va, CTE_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, CTP);
         	if (start < 0)
         	{
-                	printf("mmap failed in %s\n", __func__);
+                	printf("cte_addr_va mmap failed in %s\n", __func__);
                 	return -1;
         	}
 		printf("conext entry dev 0x%x func %d [63-0]:0x%08x%08x\n",
@@ -539,16 +591,19 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
 				dev_n, func_n, cte_addr_va[3 + OFFSET_INDEX(devfn)], cte_addr_va[2 + OFFSET_INDEX(devfn)]);
 
 		SLPTPTR = (unsigned long long int)cte_addr_va[1 + OFFSET_INDEX(devfn)] << 32 | cte_addr_va[0 + OFFSET_INDEX(devfn)];
+
+                if (munmap(cte_addr_va, CTE_MAP_SIZE) == -1)
+		        printf("cte_addr_va munmap error\n");
+
+                if (PRESENT_BIT(SLPTPTR) == 0)
+                {
+                        printf("context entry not present\n");
+                }
+
 		SLPTPTR >>= 12;
 		SLPTPTR <<= 12;
 		printf("SLPTPTR=0x%llx\n", SLPTPTR);
 		walk_page_structure_entry(SLPTPTR, input_va, fd);
-
-	        if (munmap(rte_addr_va, RTE_MAP_SIZE) == -1)
-		        printf("munmap error\n");
-
-	        if (munmap(cte_addr_va, CTE_MAP_SIZE) == -1)
-		        printf("munmap error\n");
         }
         else
         {
@@ -556,7 +611,7 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
         }
 
 
-        return 0;
+        return ret;
 
 pasid_zero:
         printf("input pasid is zero\n");
@@ -619,7 +674,7 @@ int main(int argc, char* argv[], char* envp[])
         // printf("start=%llx\n", start);
         if (start < 0)
         {
-                printf("mmap failed\n");
+                printf("reg_start_addr_va mmap failed\n");
                 return -1;
         }
 
@@ -629,7 +684,6 @@ int main(int argc, char* argv[], char* envp[])
         printf("GCMD_REG value:%#x\n", reg_start_addr_va[6]);
         printf("GSTS_REG value:%#x\n", reg_start_addr_va[7]);
         printf("RTADDR_REG value: 0x%08x%08x\n", reg_start_addr_va[9], reg_start_addr_va[8]);
-
 
         RTA = (unsigned long long)reg_start_addr_va[9] << 32 | reg_start_addr_va[8];
         RTT = RTT_BIT(reg_start_addr_va[8]);
@@ -645,7 +699,7 @@ int main(int argc, char* argv[], char* envp[])
 unmap:
         ret = munmap(reg_start_addr_va, REG_MAP_SIZE);
         if (ret == -1)
-                printf("munmap error\n");
+                printf("reg_start_addr_va munmap error\n");
 
         close(file_device);
         return 0;
