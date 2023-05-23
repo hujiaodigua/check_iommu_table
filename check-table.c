@@ -1,8 +1,11 @@
 /*************************************************************************
-	> File Name: mm_w.c
+	> File Name: check_iommu_table.c
 	> Author:
 	> Mail:
 	> Created Time: 2021年08月26日 星期四 15时32分17秒
+
+sudo ./check-table 0x7fff888002022008 0xfe48c000 0x3 0x84 0x0 0x0
+userspace va upper to 0x7fffffffffffffff, range 0～0x7FFF FFFF FFFF
  ************************************************************************/
 
 #include<stdio.h>
@@ -68,7 +71,7 @@ int offset_2_index(int x)
         }
 }*/
 
-#define OFFSET_INDEX(val)  offset_2_index(val)
+#define OFFSET_INDEX(val)  (val * 8)// offset_2_index(val)
 // #define INDEX_OFFSET(val)  index_2_offset(val)
 #define INDEX_OFFSET(val)  (val / 4)
 #define PASID_INDEX(val)  (val * 2)
@@ -220,7 +223,7 @@ addr_0_err:
         return -2;
 
 entry_not_present:
-        printf("this entry not present");
+        printf("this entry not present\n");
         return -3;
 
 GB_HUGEPAGE:
@@ -421,6 +424,7 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
                 	return -1;
         	}
 
+                printf("%llx\n", rta_pointer_val);
 		printf("root entry bus %#x [63-0]:0x%08x%08x\n",
 				bus_n, rte_addr_va[1 + INDEX_OFFSET(bus_n * 0x10)], rte_addr_va[0 + INDEX_OFFSET(bus_n * 0x10)]);
 		printf("root entry bus %#x [127-64]:0x%08x%08x\n",
@@ -476,6 +480,7 @@ int walk_structure_entry(int rtt_val, unsigned long long int rta_pointer_val,
                 	printf("cte_addr_va mmap failed in %s\n", __func__);
                 	return -1;
         	}
+                printf("devfn=%#x\n", devfn);
 		printf("conext entry dev 0x%x func %d [63-0]:0x%08x%08x\n",
 				dev_n, func_n, cte_addr_va[1 + OFFSET_INDEX(devfn)], cte_addr_va[0 + OFFSET_INDEX(devfn)]);
 		printf("conext entry dev 0x%x func %d [127-64]:0x%08x%08x\n",
