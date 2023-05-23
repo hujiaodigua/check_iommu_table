@@ -669,7 +669,7 @@ int main(int argc, char* argv[], char* envp[])
                 return -1;
         }
 
-        // DMAR0 0xfe48c000
+        // DMAR1 0xfed91000
         start = (int *)mmap(reg_start_addr_va, REG_MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, file_device, input_DMAR_addr);
         // printf("start=%llx\n", start);
         if (start < 0)
