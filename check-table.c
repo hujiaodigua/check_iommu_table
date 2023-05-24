@@ -73,7 +73,7 @@ int offset_2_index(int x)
         }
 }*/
 
-#define OFFSET_INDEX(val)  (val * 8)  // for gcc-8.3 kernel-4.19.196 32bit and 64bit
+#define OFFSET_INDEX(val)  (val * 4)  // for gcc-7.5 kernel-5.15.55 64bit
 
 #define INDEX_OFFSET(val)  (val / 4)
 #define PASID_INDEX(val)  (val * 2)
