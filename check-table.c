@@ -42,6 +42,7 @@ userspace va upper to 0x7fffffffffffffff, range 0～0x7FFF FFFF FFFF
 #define PML4_3rd_OFFSET(x)  ((x & 0x3FE00000) >> 21) << 3
 #define PML4_4th_OFFSET(x)  ((x & 0x1FF000) >> 12) << 3
 
+/*
 int offset_2_index(int x)
 {
         int bits = sizeof(char *);
@@ -56,6 +57,7 @@ int offset_2_index(int x)
                 return 0;
         }
 }
+*/
 
 /*int index_2_offset(int x)
 {
@@ -71,8 +73,8 @@ int offset_2_index(int x)
         }
 }*/
 
-#define OFFSET_INDEX(val)  (val * 8)// offset_2_index(val)
-// #define INDEX_OFFSET(val)  index_2_offset(val)
+#define OFFSET_INDEX(val)  (val * 8)  // for gcc-8.3 kernel-4.19.196 32bit and 64bit
+
 #define INDEX_OFFSET(val)  (val / 4)
 #define PASID_INDEX(val)  (val * 2)
 
