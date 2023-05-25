@@ -6,5 +6,7 @@ sudo ./check-table [input guest addr] [DMAR addr] [pasid index] [bus num] [dev n
 
 be careful the difference of OFFSET\_INDEX between 5.15.55 and 4.19.196  
 #define OFFSET_INDEX(val)  (val * 4)  // gcc 7.5 and kernel-5.15.55  
-#define OFFSET_INDEX(val)  (val * 8) // gcc 8.3 and kernel-4.19.196 32bit/64bit  
+#define OFFSET_INDEX(val)  (val * 8) // gcc 8.3 and kernel-4.19.196 32bit/64bit 
+
+*support VT-D 2.5 spec*
 
