@@ -74,8 +74,8 @@ int offset_2_index(int x)
 }*/
 
 // #define OFFSET_INDEX(val)  offset_2_index(val)
-// #define OFFSET_INDEX(val)  (val * 4)  // gcc 64bit, under 64bit OS
-#define OFFSET_INDEX(val)  (val * 8) // gcc 32bit, under 32bit and 64bit OS
+#define OFFSET_INDEX(val)  (val * 4)  // gcc 64bit, under 64bit OS
+// #define OFFSET_INDEX(val)  (val * 8) // gcc 32bit, under 32bit and 64bit OS
 
 // #define INDEX_OFFSET(val)  index_2_offset(val)
 #define INDEX_OFFSET(val)  (val / 4)
